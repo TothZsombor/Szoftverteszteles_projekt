@@ -132,6 +132,57 @@ describe('1. csapattag | GET /api/todos/:id', () => {
   });
 });
 
+describe('2. csapattag | DELETE /api/todos/:id', () => {
+  test('1. a helyes id-val egyszer hívja a findByIdAndDelete-et', async () => {
+    TodoModel.findByIdAndDelete.mockResolvedValue(storedTodo);
+    await TodoController.deleteTodo(makeReq({ params: { id: validId } }), makeRes());
+    expect(TodoModel.findByIdAndDelete).toHaveBeenCalledTimes(1);
+    expect(TodoModel.findByIdAndDelete).toHaveBeenCalledWith(validId);
+  });
+
+  test('2. sikeres törlés 204-es, üres és lezárt HTTP-választ ad', async () => {
+    TodoModel.findByIdAndDelete.mockResolvedValue(storedTodo);
+    const res = makeRes();
+    await TodoController.deleteTodo(makeReq({ params: { id: validId } }), res);
+    expect(res.statusCode).toBe(204);
+    expect(res._getData()).toBe('');
+    expect(res._isEndCalled()).toBe(true);
+  });
+
+  test('3. nem létező rekord törlése 404-et ad', async () => {
+    TodoModel.findByIdAndDelete.mockResolvedValue(null);
+    const res = makeRes();
+    await TodoController.deleteTodo(makeReq({ params: { id: validId } }), res);
+    expect(res.statusCode).toBe(404);
+    expect(res._getJSONData()).toEqual({ error: 'Todo nem található' });
+  });
+
+  test('4. hibás id-t elutasít 400-zal, és nem hívja a modellt', async () => {
+    const res = makeRes();
+    await TodoController.deleteTodo(makeReq({ params: { id: 'rossz' } }), res);
+    expect(res.statusCode).toBe(400);
+    expect(TodoModel.findByIdAndDelete).not.toHaveBeenCalled();
+  });
+
+  test('5. váratlan adatbázishibára 500-at és általános hibaüzenetet ad', async () => {
+    TodoModel.findByIdAndDelete.mockRejectedValue(new Error('titkos DB üzenet'));
+    const res = makeRes();
+    await TodoController.deleteTodo(makeReq({ params: { id: validId } }), res);
+    expect(res.statusCode).toBe(500);
+    expect(res._getJSONData()).toEqual({ error: 'Belső szerverhiba' });
+  });
+
+  test('6. Mongoose CastError esetén 400-at ad', async () => {
+    const error = new Error('sikertelen típuskonverzió');
+    error.name = 'CastError';
+    TodoModel.findByIdAndDelete.mockRejectedValue(error);
+    const res = makeRes();
+    await TodoController.deleteTodo(makeReq({ params: { id: validId } }), res);
+    expect(res.statusCode).toBe(400);
+    expect(res._getJSONData()).toEqual({ error: 'Érvénytelen adatok' });
+  });
+});
+
 describe('2. csapattag | POST /api/todos', () => {
   test('1. eltávolítja a title szóközeit, és alapértelmezetten done=false értéket ment', async () => {
     TodoModel.create.mockResolvedValue(storedTodo);
